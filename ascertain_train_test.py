@@ -2,7 +2,7 @@ from ascertain import ASCERTAINTrSet, ASCERTAINTsSet
 from avalanche.benchmarks.generators import dataset_benchmark
 from avalanche.benchmarks.utils import AvalancheDataset
 from avalanche.models import SimpleMLP
-from avalanche.training.strategies import Naive, Cumulative, LwF, EWC, JointTraining, GEM, Replay
+from avalanche.training.supervised import Naive, Cumulative, LwF, EWC, JointTraining, GEM, Replay
 from torch.optim import Adam
 from torch.nn import CrossEntropyLoss, MSELoss
 from avalanche.evaluation.metrics import forgetting_metrics, accuracy_metrics, loss_metrics, timing_metrics, cpu_usage_metrics, confusion_matrix_metrics, disk_usage_metrics, gpu_usage_metrics
@@ -124,6 +124,6 @@ def train_ascertain(strat, i=""):
 	print("\t" + str(elapsed) + " seconds")
 
 
-
+strat ='naive'
 for i in range(5):
-	train_ascertain(sys.argv[1].strip(), str(i))
+	train_ascertain(strat, str(i))

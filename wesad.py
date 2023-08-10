@@ -29,7 +29,7 @@ class WESADTrSet(Dataset):
 		self.root_dir = "datasets/WESAD/splitted/"
 		self.transform = transform
 		self.pair = pair
-		subjs = [("S2", "S3"), ("S4", "S5"), ("S6", "S7"), ("S8", "S9"), ("S10", "S11"), ("S13", "S14"), ("S15", "S16"), ("S17", "")]
+		subjs = [("S2", "S3"), ( "S5",'S7'), ("S8", "S9"), ("S10", "S11"), ("S13", "S14"), ("S15", "S16"), ("S17", "")]
 		couple = subjs[self.pair]
 
 		X, y = None, None
