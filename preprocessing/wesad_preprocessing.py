@@ -28,6 +28,7 @@ def to_categorical(y, num_classes=None, dtype='float32'):
 # Credits a Disarli
 # Caricamento dei soggetti
 ds = {
+
     "S2": pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/WESAD/S2/S2.pkl", 'rb'), encoding='latin1'),
     "S3": pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/WESAD/S3/S3.pkl", 'rb'), encoding='latin1'),
     "S4": pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/WESAD/S4/S4.pkl", 'rb'), encoding='latin1'),
@@ -48,106 +49,98 @@ print("Subjects loaded")
 
 for s in ds.keys():
     # Concatenamento e ricampionamento a 32 Hz delle 17 features di WESAD
-    if s not in ['S4','S6']:
-        with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + s + ".pkl", 'w') as file:
-            print(s+" created")
+    X = np.concatenate([
+        scipy.signal.resample(ds[s]['signal']['chest']['ACC'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['chest']['EDA'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['chest']['EMG'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['chest']['ECG'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['chest']['Resp'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['chest']['Temp'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['wrist']['ACC'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['wrist']['BVP'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['wrist']['EDA'], len(ds[s]['signal']['wrist']['ACC'])),
+        scipy.signal.resample(ds[s]['signal']['wrist']['TEMP'], len(ds[s]['signal']['wrist']['ACC']))
+        ], axis = 1)
+    print(s, "Resampled")
 
-        try:
-            X = np.concatenate([
-                scipy.signal.resample(ds[s]['signal']['chest']['ACC'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['chest']['EDA'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['chest']['EMG'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['chest']['ECG'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['chest']['Resp'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['chest']['Temp'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['wrist']['ACC'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['wrist']['BVP'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['wrist']['EDA'], len(ds[s]['signal']['wrist']['ACC'])),
-                scipy.signal.resample(ds[s]['signal']['wrist']['TEMP'], len(ds[s]['signal']['wrist']['ACC']))
-                ], axis = 1)
-            print(ds[s]['signal']['chest']['ECG'])
-            print(s, "Resampled")
+    # Standardizzazione con media = 0 e deviazione standard = 1
+    X = (X - X.mean(axis = 0)) / X.std(axis = 0)
+    print(s, "Standardized")
 
-            # Standardizzazione con media = 0 e deviazione standard = 1
-            X = (X - X.mean(axis = 0)) / X.std(axis = 0)
-            print(s, "Standardized")
+    # Ricampionamento delle etichette
+    Y = scipy.signal.resample(ds[s]['label'], len(ds[s]['signal']['wrist']['ACC']))
+    Y = np.around(Y)
+    Y = abs(Y.astype(np.int_))
+    print(s, "Labels")
 
-            # Ricampionamento delle etichette
-            Y = scipy.signal.resample(ds[s]['label'], len(ds[s]['signal']['wrist']['ACC']))
-            Y = np.around(Y)
-            Y = abs(Y.astype(np.int_))
-            print(s, "Labels")
+    # Rimozione delle etichette inutilizzate
+    X = X[(Y>0) & (Y<5)]
+    Y = Y[(Y>0) & (Y<5)]
+    print(s, "Cleaned")
+    assert len(X) == len(Y)
 
-            # Rimozione delle etichette inutilizzate
-            X = X[(Y>0) & (Y<5)]
-            Y = Y[(Y>0) & (Y<5)]
-            print(s, "Cleaned")
-            assert len(X) == len(Y)
-
-            # Creazione delle sottosequenze da 100 elementi (3 secondi)
+    # Creazione delle sottosequenze da 100 elementi (3 secondi)
+    count = 0
+    prev = Y[0]
+    LenSubsequences = []
+    for elem in Y:
+        if(elem != prev):
+            LenSubsequences.append(count)
             count = 0
-            prev = Y[0]
-            LenSubsequences = []
-            for elem in Y:
-                if(elem != prev):
-                    LenSubsequences.append(count)
-                    count = 0
-                count += 1
-                prev = elem
-            SubsequencesX = []
-            SubsequencesY = []
-            i = 0
-            for elem in LenSubsequences:
-                for j in range(0, elem, 100):
-                    if(j+100 <= elem):
-                        SubsequencesX.append(X[i+j:i+j+100])
-                        SubsequencesY.append(Y[i+j+50])
-                i += elem
+        count += 1
+        prev = elem
+    SubsequencesX = []
+    SubsequencesY = []
+    i = 0
+    for elem in LenSubsequences:
+        for j in range(0, elem, 100):
+            if(j+100 <= elem):
+                SubsequencesX.append(X[i+j:i+j+100])
+                SubsequencesY.append(Y[i+j+50])
+        i += elem
 
-            assert len(SubsequencesX) == len(SubsequencesY)
-            X_WES = (np.array(SubsequencesX, dtype = np.float32)).reshape(-1, 100, 14)
+    assert len(SubsequencesX) == len(SubsequencesY)
+    X_WES = (np.array(SubsequencesX, dtype = np.float32)).reshape(-1, 100, 14)
 
-            # Le etichette 0 e 5, 6, 7 sono state tolte, quindi si spostano le rimanenti
-            # da 1 - 4 a 0 - 3
-            Y = np.array(SubsequencesY, dtype = np.int_) - 1
-            #y_WES = to_categorical(Y, num_classes = 4)
-            y_WES = Y
+    # Le etichette 0 e 5, 6, 7 sono state tolte, quindi si spostano le rimanenti
+    # da 1 - 4 a 0 - 3
+    Y = np.array(SubsequencesY, dtype = np.int_) - 1
+    #y_WES = to_categorical(Y, num_classes = 4)
+    y_WES = Y
 
-            # Selezione di 100 sottosequenze per ogni etichetta dal soggetto
-            idx = np.argsort(Y)
-            SubY, SubX = np.array(Y)[idx], np.array(X_WES)[idx]
+    # Selezione di 100 sottosequenze per ogni etichetta dal soggetto
+    idx = np.argsort(Y)
+    SubY, SubX = np.array(Y)[idx], np.array(X_WES)[idx]
+    count = 0
+    prev = SubY[0]
+    SubsequencesX, X = [], []
+    SubsequencesY, Y = [], []
+    for i, elem in enumerate(SubY):
+        if(elem != prev):
             count = 0
-            prev = SubY[0]
-            SubsequencesX, X = [], []
-            SubsequencesY, Y = [], []
-            for i, elem in enumerate(SubY):
-                if(elem != prev):
-                    count = 0
-                count += 1
-                if (count <= 100):
-                    SubsequencesX.append(SubX[i])
-                    SubsequencesY.append(elem)
-                prev = elem
+        count += 1
+        if (count <= 100):
+            SubsequencesX.append(SubX[i])
+            SubsequencesY.append(elem)
+        prev = elem
 
-            X_WES = (np.array(SubsequencesX, dtype = np.float32))
-            Y = np.array(SubsequencesY, dtype = np.int_)
-            #y_WES = to_categorical(Y, num_classes = 4)
-            y_WES = Y
-            print(s, "Subsequences")
+    X_WES = (np.array(SubsequencesX, dtype = np.float32))
+    Y = np.array(SubsequencesY, dtype = np.int_)
+    #y_WES = to_categorical(Y, num_classes = 4)
+    y_WES = Y
+    print(s, "Subsequences")
 
-            # Salvataggio del soggetto
-            with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + s + ".pkl", 'wb') as handle:
-                pickle.dump(X_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/y" + s + ".pkl", 'wb') as handle:
-                pickle.dump(y_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        finally:
-            continue
+    # Salvataggio del soggetto
+    with open("datasets/WESAD/splitted/X" + s + ".pkl", 'wb') as handle:
+        pickle.dump(X_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open("datasets/WESAD/splitted/y" + s + ".pkl", 'wb') as handle:
+        pickle.dump(y_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Caricamento dei soggetti appena preprocessati
 X, y = None, None
-for S in ["S2", "S3", "S5", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
-    Xs = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + S + ".pkl", 'rb'), encoding='latin1')
-    ys = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/y" + S + ".pkl", 'rb'), encoding='latin1')
+for S in ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
+    Xs = pickle.load(open("datasets/WESAD/splitted/X" + S + ".pkl", 'rb'), encoding='latin1')
+    ys = pickle.load(open("datasets/WESAD/splitted/y" + S + ".pkl", 'rb'), encoding='latin1')
 
     if (X is None):
         X = copy.deepcopy(Xs)
@@ -169,15 +162,15 @@ train, targets = [], []
 for i, elem in enumerate(Xts):
 	train.append(elem)
 	targets.append(yts[i])
-with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/Xts.pkl", 'wb') as handle:
+with open("/datasets/WESAD/splitted/Xts.pkl", 'wb') as handle:
     pickle.dump(train, handle, protocol=pickle.HIGHEST_PROTOCOL)
-with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/yts.pkl", 'wb') as handle:
+with open("/datasets/WESAD/splitted/yts.pkl", 'wb') as handle:
     pickle.dump(targets, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Rimozione dei dati usati nel test set dai vari soggetti
-for S in ["S2", "S3", "S5", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
-    Xs = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + S + ".pkl", 'rb'), encoding='latin1')
-    ys = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/y" + S + ".pkl", 'rb'), encoding='latin1')
+for S in ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
+    Xs = pickle.load(open("datasets/WESAD/splitted/X" + S + ".pkl", 'rb'), encoding='latin1')
+    ys = pickle.load(open("datasets/WESAD/splitted/y" + S + ".pkl", 'rb'), encoding='latin1')
     print(S + " " + str(Xs.shape) + " " + str(ys.shape), end = " -> ")
     j = []
     for xts in Xts:
@@ -194,7 +187,7 @@ for S in ["S2", "S3", "S5", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15",
     for i, elem in enumerate(Xs):
         train.append(elem)
         targets.append(ys[i])
-    with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + S + ".pkl", 'wb') as handle:
+    with open("datasets/WESAD/splitted/X" + S + ".pkl", 'wb') as handle:
         pickle.dump(train, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/y" + S + ".pkl", 'wb') as handle:
+    with open("datasets/WESAD/splitted/y" + S + ".pkl", 'wb') as handle:
         pickle.dump(targets, handle, protocol=pickle.HIGHEST_PROTOCOL)
