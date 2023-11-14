@@ -25,8 +25,10 @@ def to_categorical(y, num_classes=None, dtype='float32'):
     return categorical
 
 
-# Credits a Disarli
-# Caricamento dei soggetti
+# Credits to Disarli
+#
+#
+# Loading subjects
 ds = {
     "S2": pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/WESAD/S2/S2.pkl", 'rb'), encoding='latin1'),
     "S3": pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/WESAD/S3/S3.pkl", 'rb'), encoding='latin1'),
@@ -47,7 +49,7 @@ ds = {
 print("Subjects loaded")
 
 for s in ds.keys():
-    # Concatenamento e ricampionamento a 32 Hz delle 17 features di WESAD
+    # Chaining and resampling at 32 Hz of the 17 WESAD features
     X = np.concatenate([
         scipy.signal.resample(ds[s]['signal']['chest']['ACC'], len(ds[s]['signal']['wrist']['ACC'])),
         scipy.signal.resample(ds[s]['signal']['chest']['EDA'], len(ds[s]['signal']['wrist']['ACC'])),
@@ -63,25 +65,25 @@ for s in ds.keys():
     print(X.shape)
     print(s, "Resampled")
 
-    # Standardizzazione con media = 0 e deviazione standard = 1
+    # Standardization with mean = 0 and standard deviation = 1
     X = (X - X.mean(axis=0)) / X.std(axis=0)
     print(X.shape)
     print(s, "Standardized")
 
-    # Ricampionamento delle etichette
+    # Label resampling
     Y = scipy.signal.resample(ds[s]['label'], len(ds[s]['signal']['wrist']['ACC']))
     Y = np.around(Y)
     Y = abs(Y.astype(np.int_))
     print(s, "Labels")
 
-    # Rimozione delle etichette inutilizzate
+    # Removing unused labels
     X = X[(Y > 0) & (Y < 5)]
     Y = Y[(Y > 0) & (Y < 5)]
     print(X.shape)
     print(s, "Cleaned")
     assert len(X) == len(Y)
 
-    # Creazione delle sottosequenze da 100 elementi (3 secondi)
+    # Creating 100-element subsequences (3 seconds)
     count = 0
     prev = Y[0]
     LenSubsequences = []
@@ -104,13 +106,13 @@ for s in ds.keys():
     assert len(SubsequencesX) == len(SubsequencesY)
     X_WES = (np.array(SubsequencesX, dtype=np.float32)).reshape(-1, 100, 14)
 
-    # Le etichette 0 e 5, 6, 7 sono state tolte, quindi si spostano le rimanenti
-    # da 1 - 4 a 0 - 3
+    # Labels 0 and 5, 6, 7 have been removed, so the remaining ones are moved
+    #     # from 1 - 4 to 0 - 3
     Y = np.array(SubsequencesY, dtype=np.int_) - 1
     # y_WES = to_categorical(Y, num_classes = 4)
     y_WES = Y
 
-    # Selezione di 100 sottosequenze per ogni etichetta dal soggetto
+    # Selection of 100 subsequences for each label from the subject
     idx = np.argsort(Y)
     SubY, SubX = np.array(Y)[idx], np.array(X_WES)[idx]
     count = 0
@@ -133,13 +135,13 @@ for s in ds.keys():
     print(X_WES.shape)
     print(s, "Subsequences")
 
-    # Salvataggio del soggetto
+    # Saving the subject
     with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + s + ".pkl", 'wb') as handle:
         pickle.dump(X_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
     with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/y" + s + ".pkl", 'wb') as handle:
         pickle.dump(y_WES, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# Caricamento dei soggetti appena preprocessati
+# Loading newly preprocessed subjects
 X, y = None, None
 for S in ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
     Xs = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + S + ".pkl", 'rb'),
@@ -161,7 +163,7 @@ for S in ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S13", "
 print("Dataset loaded")
 
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# Preparazione del test set
+# Preparation of the test set
 _, Xts, _, yts = train_test_split(X, y, test_size=0.25, train_size=0.75, random_state=42)
 print(str(Xts.shape) + " " + str(yts.shape))
 train, targets = [], []
@@ -173,7 +175,7 @@ with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/Xts.pkl
 with open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/yts.pkl", 'wb') as handle:
     pickle.dump(targets, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# Rimozione dei dati usati nel test set dai vari soggetti
+# Removing the data used in the test set by the various subjects
 for S in ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S13", "S14", "S15", "S16", "S17"]:
     Xs = pickle.load(open("/home/srijan/PycharmProjects/CLforHSM/datasets/WESAD/splitted/X" + S + ".pkl", 'rb'),
                      encoding='latin1')
